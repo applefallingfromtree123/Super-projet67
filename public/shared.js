@@ -4,8 +4,8 @@
   else root.Shared = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   const TILE = 40;
-  const MAP_W = 3200;
-  const MAP_H = 2400;
+  const MAP_W = 6400;
+  const MAP_H = 4800;
   const COLS = MAP_W / TILE;
   const ROWS = MAP_H / TILE;
 
@@ -71,7 +71,7 @@
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const nx = c / COLS, ny = r / ROWS;
-        const n = fbm(c / 9, r / 9, seed);
+        const n = fbm(c / 14, r / 14, seed);
         let land;
         if (type === 'land') {
           land = n > 0.28; // 작은 호수 몇 개

@@ -1,7 +1,8 @@
 # 철갑 전선 — 온라인 전투 게임
 
 전차 · 전함 · 전투기가 한 전장에서 싸우는 브라우저 멀티플레이 게임입니다.
-Node.js 서버(WebSocket)가 게임을 진행하고, 브라우저는 HTML5 Canvas로 화면을 그립니다.
+Node.js 서버(WebSocket)가 게임을 진행하고, 브라우저는 Three.js(WebGL)로 3D 화면을 그립니다.
+지도는 6400 × 4800 크기이며 언덕·숲·바위가 있는 육지와 파도치는 바다로 이루어져 있습니다.
 
 ## 실행
 
@@ -35,7 +36,8 @@ Blueprint 대신 **New → Web Service** 로 직접 만들 때는 Build Command 
 | ⚓ 해전 | 전함만 | 섬이 있는 바다 |
 | ✈ 공중전 | 전투기만 | 대륙 + 바다 (상공) |
 
-접속자가 4명보다 적으면 봇이 자동으로 들어와 빈자리를 채웁니다 (`MIN_COMBATANTS` 환경변수로 조절, 0이면 봇 없음).
+전장 인원이 10명보다 적으면 봇이 자동으로 들어와 빈자리를 채웁니다 (`MIN_COMBATANTS` 환경변수로 조절, 0이면 봇 없음).
+봇은 자기 주무기로 맞출 수 있는 적을 먼저 노립니다.
 
 ## 전투 기계
 
@@ -55,6 +57,7 @@ Blueprint 대신 **New → Web Service** 로 직접 만들 때는 Build Command 
 | A / D (← / →) | 선회 |
 | Q / E | 포탑 왼쪽·오른쪽 회전 (전차·전함) |
 | R | 포탑 정면으로 되돌리기 |
+| V | 시점 전환 (뒤에서 따라가기 ↔ 위에서 내려보기) |
 | Space 또는 J | 주무기 |
 | F 또는 K | 보조무기 |
 | Enter | 채팅 (보내기도 Enter, 취소 Esc) |
@@ -77,4 +80,5 @@ Blueprint 대신 **New → Web Service** 로 직접 만들 때는 Build Command 
 
 - `server.js` — HTTP 정적 파일 + WebSocket, 30틱/초 서버 권위 시뮬레이션, 봇 AI
 - `public/shared.js` — 서버와 클라이언트가 함께 쓰는 능력치 / 지도 생성 규칙
-- `public/client.js` — 입력, 보간 렌더링, HUD, 미니맵, 채팅
+- `public/client.js` — 입력, 상태 보간, HUD, 미니맵, 채팅
+- `public/world3d.js` — 3D 렌더링: 지형·바다·하늘, 전투 기계 모델, 탄환, 폭발·연기·물보라 파티클, 추적 카메라

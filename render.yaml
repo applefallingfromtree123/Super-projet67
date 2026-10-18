@@ -10,4 +10,4 @@ services:
       - key: NODE_VERSION
         value: 22
       - key: MIN_COMBATANTS
-        value: 4
+        value: 10

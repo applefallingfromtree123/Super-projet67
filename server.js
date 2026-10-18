@@ -7,20 +7,21 @@ const S = require('./public/shared.js');
 
 const PORT = process.env.PORT || 3000;
 const TICK = 1 / 30;
-const MIN_COMBATANTS = Number(process.env.MIN_COMBATANTS ?? 4); // 사람이 부족하면 봇으로 채움
+const MIN_COMBATANTS = Number(process.env.MIN_COMBATANTS ?? 10); // 사람이 부족하면 봇으로 채움
 const RESPAWN_DELAY = 3;
 const SPAWN_SHIELD = 2;
 const MAX_NAME = 12;
 const MAX_CHAT = 120;
 
 // ---------- 정적 파일 서버 ----------
+const VENDOR = { '/vendor/three.module.js': path.join(__dirname, 'node_modules/three/build/three.module.min.js') };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUBLIC = path.join(__dirname, 'public');
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url === '/healthz') { res.writeHead(200); return res.end('ok'); }
-  const file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
-  if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
+  const file = VENDOR[url] || path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
+  if (!VENDOR[url] && !file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
@@ -45,7 +46,8 @@ function rotateToward(cur, target, maxStep) {
 const r1 = (v) => Math.round(v * 10) / 10;
 const r2 = (v) => Math.round(v * 100) / 100;
 
-const BOT_NAMES = ['알파', '브라보', '찰리', '델타', '에코', '폭스트롯', '골프', '호텔', '인디아', '줄리엣', '킬로', '리마'];
+const BOT_NAMES = ['알파', '브라보', '찰리', '델타', '에코', '폭스트롯', '골프', '호텔', '인디아', '줄리엣', '킬로', '리마',
+  '마이크', '노벰버', '오스카', '파파', '퀘벡', '로미오', '시에라', '탱고', '유니폼', '빅터', '위스키', '엑스레이'];
 let nextId = 1;
 
 // ---------- 방 (모드 하나당 방 하나) ----------
@@ -69,7 +71,7 @@ class Room {
       if (!S.canOccupy(this.grid, vtype, x, y)) continue;
       // 적과 너무 가깝지 않은 곳
       let ok = true;
-      for (const o of this.players.values()) if (o.alive && dist2(o, { x, y }) < 350 * 350) { ok = false; break; }
+      for (const o of this.players.values()) if (o.alive && dist2(o, { x, y }) < 600 * 600) { ok = false; break; }
       if (ok || i > 300) return { x, y };
     }
     return { x: S.MAP_W / 2, y: S.MAP_H / 2 };
@@ -135,7 +137,9 @@ class Room {
       let best = null, bd = Infinity;
       for (const o of this.players.values()) {
         if (o === p || !o.alive) continue;
-        const d = dist2(p, o);
+        // 주무기로 맞출 수 없는 상대(예: 전차 → 전투기)는 덜 우선
+        const hittable = v.weapons[0].hits.includes(S.VEHICLES[o.vtype].layer);
+        const d = dist2(p, o) * (hittable ? 1 : 4) * (o.bot ? 1 : 0.8);
         if (d < bd) { bd = d; best = o; }
       }
       p.target = best ? best.id : null;

@@ -40,6 +40,7 @@
 
   <!-- 인게임 HUD -->
   <div id="hud" class="hidden">
+    <div id="labels"></div>
     <div id="topbar"><span id="modeLabel"></span><span id="pingLabel"></span></div>
     <div id="killfeed"></div>
     <div id="stats">
@@ -56,10 +57,11 @@
       <div id="chatLog" class="chat-log"></div>
       <input id="chatInput" maxlength="120" placeholder="Enter 눌러 채팅">
     </div>
-    <div id="help">WASD 이동 · Q/E 포탑 (R 정면) · Space 주무기 · F 보조무기 · Tab 점수판 · Enter 채팅 · Esc 기체 변경</div>
+    <div id="help">WASD 이동 · Q/E 포탑 (R 정면) · Space 주무기 · F 보조무기 · V 시점 전환 · Tab 점수판 · Enter 채팅 · Esc 기체 변경</div>
   </div>
 
   <script src="shared.js"></script>
-  <script src="client.js"></script>
+  <script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
+  <script type="module" src="client.js"></script>
 </body>
 </html>

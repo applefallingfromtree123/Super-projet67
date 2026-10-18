@@ -16,6 +16,7 @@
   },
   "homepage": "https://github.com/applefallingfromtree123/Super-projet67#readme",
   "dependencies": {
+    "three": "^0.170.0",
     "ws": "^8.22.0"
   },
   "engines": {

@@ -1,9 +1,11 @@
-// 클라이언트: 입력 전송, 서버 상태 보간 렌더링, HUD / 채팅
-(() => {
+// 클라이언트: 입력 전송, 서버 상태 보간, 3D 렌더링 호출, HUD / 채팅
+import { World } from './world3d.js';
+
+{
   const S = window.Shared;
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
-  const ctx = canvas.getContext('2d');
+  const world = new World(canvas, $('labels'));
   const mini = $('minimap');
   const mctx = mini.getContext('2d');
 
@@ -11,21 +13,16 @@
   let myId = null;
   let mode = null;
   let grid = null;
-  let terrainCanvas = null;
   let miniTerrain = null;
   let lobbyModes = {};
 
   // 보간용 스냅샷: 이전/현재
   let prevSnap = null, curSnap = null, snapTime = 0, snapInterval = 33;
-  const bulletsPrev = new Map();
-  const effects = [];
-  const trails = []; // 전투기 비행운, 전함 항적
   let deadInfo = null;
   let pendingSwitch = null;
   let inGame = false;
 
   const keys = {};
-  const cam = { x: S.MAP_W / 2, y: S.MAP_H / 2 };
 
   // ---------- 연결 ----------
   function connect() {
@@ -48,7 +45,8 @@
       case 'joined':
         myId = m.id; mode = m.mode;
         grid = S.generateMap(m.map, m.seed);
-        buildTerrain();
+        world.load(grid);
+        buildMinimap();
         prevSnap = curSnap = null;
         $('chatLog').innerHTML = '';
         $('killfeed').innerHTML = '';
@@ -65,7 +63,7 @@
         prevSnap = curSnap; curSnap = m; snapTime = now;
         break;
       }
-      case 'fx': addEffect(m.x, m.y, m.s); break;
+      case 'fx': if (inGame) world.effect(m.x, m.y, m.s, curSnap ? curSnap.p : []); break;
       case 'kill': addKill(m); break;
       case 'chat': addChat(m); break;
       case 'dead':
@@ -109,6 +107,7 @@
     $('lobby').classList.remove('hidden');
     $('spawnPanel').classList.add('hidden');
     $('hud').classList.add('hidden');
+    world.clearLabels();
   }
   $('backToLobby').onclick = leaveToLobby;
 
@@ -153,53 +152,21 @@
   }
   function hideSpawn() { $('spawnPanel').classList.add('hidden'); }
 
-  // ---------- 지형 프리렌더 ----------
-  function buildTerrain() {
-    terrainCanvas = document.createElement('canvas');
-    terrainCanvas.width = S.MAP_W; terrainCanvas.height = S.MAP_H;
-    const t = terrainCanvas.getContext('2d');
-    t.fillStyle = '#1d4f7a';
-    t.fillRect(0, 0, S.MAP_W, S.MAP_H);
-    for (let r = 0; r < S.ROWS; r++) {
-      for (let c = 0; c < S.COLS; c++) {
-        const x = c * S.TILE, y = r * S.TILE;
-        if (grid[r * S.COLS + c]) {
-          const shade = ((c * 7 + r * 13) % 5) * 3;
-          t.fillStyle = `rgb(${62 + shade},${92 + shade},${50 + shade})`;
-          t.fillRect(x, y, S.TILE, S.TILE);
-        } else {
-          // 해안 근처 얕은 바다
-          let near = false;
-          for (let dr = -1; dr <= 1 && !near; dr++) for (let dc = -1; dc <= 1; dc++) {
-            const rr = r + dr, cc = c + dc;
-            if (rr >= 0 && cc >= 0 && rr < S.ROWS && cc < S.COLS && grid[rr * S.COLS + cc]) { near = true; break; }
-          }
-          if (near) { t.fillStyle = '#2a6d96'; t.fillRect(x, y, S.TILE, S.TILE); }
-        }
-      }
-    }
-    // 장식: 나무 / 파도
-    for (let i = 0; i < 2500; i++) {
-      const x = Math.random() * S.MAP_W, y = Math.random() * S.MAP_H;
-      if (S.isLand(grid, x, y)) {
-        t.fillStyle = 'rgba(30,60,28,0.7)';
-        t.beginPath(); t.arc(x, y, 4 + Math.random() * 6, 0, Math.PI * 2); t.fill();
-      } else if (i % 3 === 0) {
-        t.strokeStyle = 'rgba(255,255,255,0.08)';
-        t.beginPath(); t.moveTo(x, y); t.quadraticCurveTo(x + 8, y - 4, x + 16, y); t.stroke();
-      }
-    }
-    // 격자
-    t.strokeStyle = 'rgba(255,255,255,0.04)';
-    for (let x = 0; x <= S.MAP_W; x += 200) { t.beginPath(); t.moveTo(x, 0); t.lineTo(x, S.MAP_H); t.stroke(); }
-    for (let y = 0; y <= S.MAP_H; y += 200) { t.beginPath(); t.moveTo(0, y); t.lineTo(S.MAP_W, y); t.stroke(); }
-    t.strokeStyle = '#c33'; t.lineWidth = 6; t.strokeRect(0, 0, S.MAP_W, S.MAP_H);
-
+  // ---------- 미니맵 지형 ----------
+  function buildMinimap() {
     miniTerrain = document.createElement('canvas');
     miniTerrain.width = mini.width; miniTerrain.height = mini.height;
-    miniTerrain.getContext('2d').drawImage(terrainCanvas, 0, 0, mini.width, mini.height);
+    const t = miniTerrain.getContext('2d');
+    const img = t.createImageData(mini.width, mini.height);
+    for (let y = 0; y < mini.height; y++) for (let x = 0; x < mini.width; x++) {
+      const land = S.isLand(grid, (x + 0.5) / mini.width * S.MAP_W, (y + 0.5) / mini.height * S.MAP_H);
+      const i = (y * mini.width + x) * 4;
+      img.data.set(land ? [86, 124, 62, 255] : [31, 92, 132, 255], i);
+    }
+    t.putImageData(img, 0, 0);
   }
 
+  // ---------- 아이콘 (기체 선택 카드) ----------
   // ---------- 그리기 ----------
   function drawVehicle(c, vt, angle, turret, color, scale = 1) {
     c.save();
@@ -248,10 +215,6 @@
     return pal[id % pal.length];
   }
 
-  function addEffect(x, y, s) {
-    effects.push({ x, y, s: s || 8, t: 0, life: s ? 0.6 + s / 200 : 0.25 });
-  }
-
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) {
     let d = b - a;
@@ -283,127 +246,17 @@
   let lastFrame = performance.now();
   function frame() {
     const now = performance.now();
-    const dt = Math.min(0.05, (now - lastFrame) / 1000);
+    // 느린 PC 에서도 카메라가 기체를 놓치지 않도록 실제 경과 시간을 쓴다 (최대 0.25초)
+    const dt = Math.min(0.25, (now - lastFrame) / 1000);
     lastFrame = now;
-    const W = canvas.width = window.innerWidth;
-    const H = canvas.height = window.innerHeight;
-    ctx.fillStyle = '#0b1420';
-    ctx.fillRect(0, 0, W, H);
-
-    if (inGame && terrainCanvas) {
+    if (inGame && grid) {
       const { players, bullets } = interpolated();
+      world.render(players, bullets, dt, myId, colorFor);
       const me = players.find((p) => p.id === myId);
-      if (me && me.a) {
-        // 전투기는 진행 방향 앞쪽을 더 보여줌
-        const look = me.v === 'jet' ? 120 : 0;
-        const tx = me.x + Math.cos(me.an) * look, ty = me.y + Math.sin(me.an) * look;
-        cam.x += (tx - cam.x) * Math.min(1, dt * 8);
-        cam.y += (ty - cam.y) * Math.min(1, dt * 8);
-      }
-      const ox = Math.round(W / 2 - cam.x), oy = Math.round(H / 2 - cam.y);
-      ctx.drawImage(terrainCanvas, -ox, -oy, W, H, 0, 0, W, H);
-      ctx.save();
-      ctx.translate(ox, oy);
-
-      // 항적 / 비행운
-      for (const p of players) {
-        if (!p.a) continue;
-        if (p.v === 'ship' && Math.abs(p.sp) > 10 && Math.random() < dt * 12) trails.push({ x: p.x - Math.cos(p.an) * 38, y: p.y - Math.sin(p.an) * 38, t: 0, life: 1.8, k: 'wake' });
-        if (p.v === 'jet') trails.push({ x: p.x - Math.cos(p.an) * 20, y: p.y - Math.sin(p.an) * 20, t: 0, life: 0.6, k: 'contrail' });
-        if (p.v === 'tank' && Math.abs(p.sp) > 20 && Math.random() < 0.3) trails.push({ x: p.x, y: p.y, t: 0, life: 3, k: 'track', a: p.an });
-      }
-      for (let i = trails.length - 1; i >= 0; i--) {
-        const tr = trails[i];
-        tr.t += dt;
-        if (tr.t > tr.life) { trails.splice(i, 1); continue; }
-        const f = 1 - tr.t / tr.life;
-        if (tr.k === 'wake') { ctx.strokeStyle = `rgba(255,255,255,${0.3 * f})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tr.x, tr.y, 4 + tr.t * 14, 0, Math.PI * 2); ctx.stroke(); }
-        else if (tr.k === 'contrail') { ctx.fillStyle = `rgba(255,255,255,${0.4 * f})`; ctx.beginPath(); ctx.arc(tr.x, tr.y, 3, 0, Math.PI * 2); ctx.fill(); }
-        else { ctx.save(); ctx.translate(tr.x, tr.y); ctx.rotate(tr.a); ctx.fillStyle = `rgba(30,25,15,${0.25 * f})`; ctx.fillRect(-3, -16, 6, 5); ctx.fillRect(-3, 11, 6, 5); ctx.restore(); }
-      }
-
-      // 지상 유닛 → 지상 포탄 → 전투기(그림자 포함) → 공중 탄환 순서로 그리기
-      const alive = players.filter((p) => p.a && p.v);
-      const drawUnit = (p) => {
-        ctx.save(); ctx.translate(p.x, p.y);
-        if (p.sh) { ctx.strokeStyle = 'rgba(120,200,255,.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, S.VEHICLES[p.v].radius + 10, 0, Math.PI * 2); ctx.stroke(); }
-        drawVehicle(ctx, p.v, p.an, p.tu, colorFor(p.id));
-        ctx.restore();
-      };
-      for (const p of alive) if (p.v !== 'jet') drawUnit(p);
-      drawBullets(bullets, 'ground');
-      for (const p of alive) {
-        if (p.v !== 'jet') continue;
-        ctx.save(); ctx.translate(p.x + 30, p.y + 40); ctx.globalAlpha = 0.3;
-        drawVehicle(ctx, 'jet', p.an, p.an, '#000'); ctx.restore();
-      }
-      for (const p of alive) if (p.v === 'jet') drawUnit(p);
-      drawBullets(bullets, 'air');
-
-      // 이름 / 체력바
-      for (const p of alive) {
-        const v = S.VEHICLES[p.v];
-        const yOff = v.radius + 18;
-        ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(p.x - 25, p.y - yOff, 50, 5);
-        ctx.fillStyle = p.hp / v.hp > 0.35 ? '#3ecf6a' : '#e05a4f';
-        ctx.fillRect(p.x - 25, p.y - yOff, 50 * Math.max(0, p.hp / v.hp), 5);
-        ctx.font = '12px system-ui, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillStyle = p.id === myId ? '#ffcf5a' : '#fff';
-        ctx.fillText(p.n, p.x, p.y - yOff - 5);
-      }
-
-      // 폭발 효과
-      for (let i = effects.length - 1; i >= 0; i--) {
-        const e = effects[i];
-        e.t += dt;
-        if (e.t > e.life) { effects.splice(i, 1); continue; }
-        const f = e.t / e.life;
-        const r = e.s ? e.s * (0.4 + f) : 6 + f * 6;
-        ctx.fillStyle = `rgba(255,${Math.round(200 - f * 150)},60,${1 - f})`;
-        ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill();
-        if (e.s > 50) { ctx.fillStyle = `rgba(60,60,60,${0.6 * (1 - f)})`; ctx.beginPath(); ctx.arc(e.x, e.y, r * 1.3, 0, Math.PI * 2); ctx.fill(); }
-      }
-
-      // 조준선
-      if (me && me.a && me.v !== 'jet') {
-        const range = Math.min(500, S.VEHICLES[me.v].weapons[0].speed * S.VEHICLES[me.v].weapons[0].life);
-        ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([6, 8]);
-        ctx.beginPath(); ctx.moveTo(me.x, me.y); ctx.lineTo(me.x + Math.cos(me.tu) * range, me.y + Math.sin(me.tu) * range); ctx.stroke();
-        ctx.setLineDash([]);
-        const wx = me.x + Math.cos(me.tu) * range, wy = me.y + Math.sin(me.tu) * range;
-        ctx.strokeStyle = 'rgba(255,207,90,.8)';
-        ctx.beginPath(); ctx.arc(wx, wy, 10, 0, Math.PI * 2); ctx.stroke();
-      } else if (me && me.a) {
-        ctx.strokeStyle = 'rgba(255,207,90,.7)';
-        const gx = me.x + Math.cos(me.an) * 260, gy = me.y + Math.sin(me.an) * 260;
-        ctx.beginPath(); ctx.arc(gx, gy, 12, 0, Math.PI * 2); ctx.moveTo(gx - 18, gy); ctx.lineTo(gx + 18, gy); ctx.moveTo(gx, gy - 18); ctx.lineTo(gx, gy + 18); ctx.stroke();
-      }
-      ctx.restore();
-
       updateHud(me, players);
-      drawMinimap(players);
-    }
+      drawMinimap(players, me);
+    } else world.renderIdle(dt);
     requestAnimationFrame(frame);
-  }
-
-  function drawBullets(bullets, layer) {
-    for (const b of bullets) {
-      const [, x, y, a, vt, w] = b;
-      const isAir = vt === 'jet';
-      if ((layer === 'air') !== isAir) continue;
-      const def = S.VEHICLES[vt].weapons[w];
-      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-      if (def.homing) {
-        ctx.fillStyle = '#ddd'; ctx.fillRect(-8, -2, 14, 4);
-        ctx.fillStyle = 'rgba(255,160,60,.9)'; ctx.beginPath(); ctx.arc(-10, 0, 3 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
-      } else if (def.splash) {
-        ctx.fillStyle = '#ffe08a'; ctx.beginPath(); ctx.arc(0, 0, def.radius, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,220,120,.3)'; ctx.fillRect(-14, -2, 14, 4);
-      } else {
-        ctx.fillStyle = '#fff6b0'; ctx.fillRect(-8, -1, 10, 2);
-      }
-      ctx.restore();
-    }
   }
 
   // ---------- HUD ----------
@@ -436,7 +289,7 @@
     } else sb.classList.add('hidden');
   }
 
-  function drawMinimap(players) {
+  function drawMinimap(players, me) {
     const sx = mini.width / S.MAP_W, sy = mini.height / S.MAP_H;
     mctx.clearRect(0, 0, mini.width, mini.height);
     mctx.globalAlpha = 0.85;
@@ -450,8 +303,11 @@
         mctx.beginPath(); mctx.moveTo(p.x * sx, p.y * sy - s); mctx.lineTo(p.x * sx + s, p.y * sy + s); mctx.lineTo(p.x * sx - s, p.y * sy + s); mctx.fill();
       } else mctx.fillRect(p.x * sx - s / 2, p.y * sy - s / 2, s, s);
     }
-    mctx.strokeStyle = 'rgba(255,255,255,.5)';
-    mctx.strokeRect((cam.x - innerWidth / 2) * sx, (cam.y - innerHeight / 2) * sy, innerWidth * sx, innerHeight * sy);
+    if (me && me.a) {
+      // 내 진행 방향
+      mctx.strokeStyle = 'rgba(255,207,90,.8)';
+      mctx.beginPath(); mctx.moveTo(me.x * sx, me.y * sy); mctx.lineTo((me.x + Math.cos(me.an) * 400) * sx, (me.y + Math.sin(me.an) * 400) * sy); mctx.stroke();
+    }
   }
 
   // ---------- 킬피드 / 채팅 ----------
@@ -497,8 +353,8 @@
   };
   const DIGITS = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3 };
   const lobbyChatInput = $('lobbyChatInput');
-  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { nameInput.blur(); e.preventDefault(); } });
-  lobbyChatInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') lobbyChatInput.blur(); });
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { nameInput.blur(); e.preventDefault(); e.stopPropagation(); } });
+  lobbyChatInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { lobbyChatInput.blur(); e.stopPropagation(); } });
 
   window.addEventListener('keydown', (e) => {
     const typing = document.activeElement === nameInput || document.activeElement === lobbyChatInput;
@@ -520,6 +376,7 @@
     }
     if (e.key === 'Enter') { chatInput.focus(); e.preventDefault(); return; }
     if (e.code === 'Escape') { showSpawn('전투 기계 변경', 'Esc로 닫기 — 새 기체를 고르면 현재 기체는 퇴각(피격 1회 처리) 후 3초 뒤 재출격합니다'); return; }
+    if (e.code === 'KeyV') { world.camMode = world.camMode === 'chase' ? 'top' : 'chase'; return; }
     if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     keys[e.code] = true;
   });
@@ -569,7 +426,8 @@
   setInterval(() => { if (inGame) $('pingLabel').textContent = `${Math.round(1000 / snapInterval)} 틱/초`; }, 1000);
 
   renderModes();
+  world.load(S.generateMap('mixed', 4242));
   if (!nameInput.value) nameInput.focus();
   connect();
   requestAnimationFrame(frame);
-})();
+}
