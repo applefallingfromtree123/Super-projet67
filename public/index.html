@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>철갑 전선 — 온라인 전투</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- 로비 -->
+  <div id="lobby" class="overlay">
+    <div class="panel">
+      <h1>철갑 전선</h1>
+      <p class="sub">전차 · 전함 · 전투기 온라인 대전</p>
+      <label class="field">닉네임
+        <input id="nameInput" maxlength="12" placeholder="닉네임 입력">
+      </label>
+      <h2>전투 모드 선택</h2>
+      <div id="modeList" class="modes"></div>
+      <div class="lobby-chat">
+        <div id="lobbyChatLog" class="chat-log"></div>
+        <input id="lobbyChatInput" maxlength="120" placeholder="로비 채팅 (Enter로 전송)">
+      </div>
+      <div id="connStatus" class="status">서버 연결 중…</div>
+    </div>
+  </div>
+
+  <!-- 기체 선택 / 리스폰 -->
+  <div id="spawnPanel" class="overlay hidden">
+    <div class="panel">
+      <h2 id="spawnTitle">전투 기계 선택</h2>
+      <p id="spawnSub" class="sub"></p>
+      <div id="vehicleList" class="vehicles"></div>
+      <button id="backToLobby" class="ghost">로비로 나가기</button>
+    </div>
+  </div>
+
+  <!-- 인게임 HUD -->
+  <div id="hud" class="hidden">
+    <div id="topbar"><span id="modeLabel"></span><span id="pingLabel"></span></div>
+    <div id="killfeed"></div>
+    <div id="stats">
+      <div class="hpbar"><div id="hpFill"></div><span id="hpText"></span></div>
+      <div class="weapons">
+        <div class="weapon"><span id="w1Name"></span><div class="cd"><div id="w1Fill"></div></div><kbd>좌클릭</kbd></div>
+        <div class="weapon"><span id="w2Name"></span><div class="cd"><div id="w2Fill"></div></div><kbd>우클릭 / Space</kbd></div>
+      </div>
+      <div id="speedText"></div>
+    </div>
+    <canvas id="minimap" width="200" height="150"></canvas>
+    <div id="scoreboard" class="hidden"></div>
+    <div id="chat">
+      <div id="chatLog" class="chat-log"></div>
+      <input id="chatInput" maxlength="120" placeholder="Enter 눌러 채팅">
+    </div>
+    <div id="help">WASD 이동 · 마우스 조준 · Tab 점수판 · Enter 채팅 · Esc 기체 변경</div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>

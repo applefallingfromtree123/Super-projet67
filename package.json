@@ -1,0 +1,21 @@
+{
+  "name": "ironclad-front",
+  "version": "1.0.0",
+  "description": "전차·전함·전투기 온라인 전투 게임",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/applefallingfromtree123/Super-projet67.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/applefallingfromtree123/Super-projet67/issues"
+  },
+  "homepage": "https://github.com/applefallingfromtree123/Super-projet67#readme",
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}
