@@ -94,7 +94,7 @@ class Room {
       vtype, x: pos.x, y: pos.y, angle: rand(-Math.PI, Math.PI), speed: vtype === 'jet' ? v.minSpeed + 40 : 0,
       hp: v.hp, alive: true, cd: [0, 0], shield: SPAWN_SHIELD,
     });
-    p.aim = p.angle; p.turret = p.angle;
+    p.aim = p.angle; p.turret = p.angle; p.turretOff = 0;
     if (vtype === 'jet') {
       // 지도 중앙을 향해 출발
       p.angle = Math.atan2(S.MAP_H / 2 - p.y, S.MAP_W / 2 - p.x);
@@ -236,10 +236,17 @@ class Room {
       p.speed *= -0.2;
       if (p.bot) p.stuck = 0.8;
     }
-    // 포탑 회전
-    const tr = p.vtype === 'ship' ? 1.6 : 3.5;
-    const aim = typeof inp.aim === 'number' && isFinite(inp.aim) ? inp.aim : p.angle;
-    p.turret = p.vtype === 'jet' ? p.angle : rotateToward(p.turret, aim, tr * dt);
+    // 포탑 회전: 봇은 목표 각도로, 사람은 Q/E 키로 차체 기준 상대 각도를 돌린다
+    const tr = p.vtype === 'ship' ? 1.6 : 2.6;
+    if (p.vtype === 'jet') p.turret = p.angle;
+    else if (p.bot) {
+      const aim = typeof inp.aim === 'number' && isFinite(inp.aim) ? inp.aim : p.angle;
+      p.turret = rotateToward(p.turret, aim, tr * dt);
+    } else {
+      if (inp.c) p.turretOff = rotateToward(p.turretOff, 0, tr * dt);
+      p.turretOff = angleDiff(0, p.turretOff + ((inp.tr ? 1 : 0) - (inp.tl ? 1 : 0)) * tr * dt);
+      p.turret = p.angle + p.turretOff;
+    }
   }
 
   fireWeapons(p, dt) {
@@ -421,7 +428,7 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'input': {
-        player.input = { u: !!m.u, d: !!m.d, l: !!m.l, r: !!m.r, f1: !!m.f1, f2: !!m.f2, aim: Number(m.aim) || 0 };
+        player.input = { u: !!m.u, d: !!m.d, l: !!m.l, r: !!m.r, tl: !!m.tl, tr: !!m.tr, c: !!m.c, f1: !!m.f1, f2: !!m.f2 };
         break;
       }
       case 'chat': {

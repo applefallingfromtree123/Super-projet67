@@ -15,13 +15,13 @@
       <h1>철갑 전선</h1>
       <p class="sub">전차 · 전함 · 전투기 온라인 대전</p>
       <label class="field">닉네임
-        <input id="nameInput" maxlength="12" placeholder="닉네임 입력">
+        <input id="nameInput" maxlength="12" placeholder="닉네임 입력 후 Enter (N 키로 다시 입력)">
       </label>
-      <h2>전투 모드 선택</h2>
+      <h2>전투 모드 선택 <span class="hint">숫자키 1~4</span></h2>
       <div id="modeList" class="modes"></div>
       <div class="lobby-chat">
         <div id="lobbyChatLog" class="chat-log"></div>
-        <input id="lobbyChatInput" maxlength="120" placeholder="로비 채팅 (Enter로 전송)">
+        <input id="lobbyChatInput" maxlength="120" placeholder="Enter 눌러 로비 채팅 · Esc 나가기">
       </div>
       <div id="connStatus" class="status">서버 연결 중…</div>
     </div>
@@ -32,8 +32,9 @@
     <div class="panel">
       <h2 id="spawnTitle">전투 기계 선택</h2>
       <p id="spawnSub" class="sub"></p>
+      <p class="hint">숫자키로 선택</p>
       <div id="vehicleList" class="vehicles"></div>
-      <button id="backToLobby" class="ghost">로비로 나가기</button>
+      <button id="backToLobby" class="ghost">로비로 나가기 <kbd>L</kbd></button>
     </div>
   </div>
 
@@ -44,8 +45,8 @@
     <div id="stats">
       <div class="hpbar"><div id="hpFill"></div><span id="hpText"></span></div>
       <div class="weapons">
-        <div class="weapon"><span id="w1Name"></span><div class="cd"><div id="w1Fill"></div></div><kbd>좌클릭</kbd></div>
-        <div class="weapon"><span id="w2Name"></span><div class="cd"><div id="w2Fill"></div></div><kbd>우클릭 / Space</kbd></div>
+        <div class="weapon"><span id="w1Name"></span><div class="cd"><div id="w1Fill"></div></div><kbd>Space / J</kbd></div>
+        <div class="weapon"><span id="w2Name"></span><div class="cd"><div id="w2Fill"></div></div><kbd>F / K</kbd></div>
       </div>
       <div id="speedText"></div>
     </div>
@@ -55,7 +56,7 @@
       <div id="chatLog" class="chat-log"></div>
       <input id="chatInput" maxlength="120" placeholder="Enter 눌러 채팅">
     </div>
-    <div id="help">WASD 이동 · 마우스 조준 · Tab 점수판 · Enter 채팅 · Esc 기체 변경</div>
+    <div id="help">WASD 이동 · Q/E 포탑 (R 정면) · Space 주무기 · F 보조무기 · Tab 점수판 · Enter 채팅 · Esc 기체 변경</div>
   </div>
 
   <script src="shared.js"></script>

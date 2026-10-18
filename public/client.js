@@ -25,7 +25,6 @@
   let inGame = false;
 
   const keys = {};
-  const mouse = { x: 0, y: 0, l: false, r: false };
   const cam = { x: S.MAP_W / 2, y: S.MAP_H / 2 };
 
   // ---------- 연결 ----------
@@ -93,22 +92,25 @@
       const info = lobbyModes[key] || { humans: 0 };
       const b = document.createElement('button');
       b.className = 'card';
-      b.innerHTML = `<div class="title">${MODE_ICON[key]} ${def.name}</div><div class="desc">${def.desc}</div><div class="count">접속자 ${info.humans}명</div>`;
-      b.onclick = () => {
-        const name = nameInput.value.trim();
-        try { localStorage.setItem('bf_name', name); } catch {}
-        send({ t: 'join', mode: key, name });
-      };
+      const num = Object.keys(S.MODES).indexOf(key) + 1;
+      b.innerHTML = `<div class="title"><kbd>${num}</kbd> ${MODE_ICON[key]} ${def.name}</div><div class="desc">${def.desc}</div><div class="count">접속자 ${info.humans}명</div>`;
+      b.onclick = () => joinMode(key);
       list.appendChild(b);
     }
   }
+  function joinMode(key) {
+    const name = nameInput.value.trim();
+    try { localStorage.setItem('bf_name', name); } catch {}
+    send({ t: 'join', mode: key, name });
+  }
+  function leaveToLobby() { send({ t: 'leave' }); showLobby(); }
   function showLobby() {
     inGame = false;
     $('lobby').classList.remove('hidden');
     $('spawnPanel').classList.add('hidden');
     $('hud').classList.add('hidden');
   }
-  $('backToLobby').onclick = () => { send({ t: 'leave' }); showLobby(); };
+  $('backToLobby').onclick = leaveToLobby;
 
   // ---------- 기체 선택 ----------
   function showSpawn(title, sub) {
@@ -129,23 +131,25 @@
       drawVehicle(c, vt, 0, 0, '#ffcf5a', 1.2);
       b.appendChild(pc);
       const info = document.createElement('div');
-      info.innerHTML = `<div class="title">${v.name}</div>
+      const num = S.MODES[mode].vehicles.indexOf(vt) + 1;
+      info.innerHTML = `<div class="title"><kbd>${num}</kbd> ${v.name}</div>
         <div class="stat">체력 ${v.hp} · 속도 ${v.maxSpeed}</div>
         <div class="stat">주무기: ${v.weapons[0].name}</div>
         <div class="stat">보조: ${v.weapons[1].name}</div>
         <div class="desc">${vt === 'tank' ? '육지 전용 · 회전 포탑' : vt === 'ship' ? '바다 전용 · 강력한 함포' : '어디든 비행 · 멈출 수 없음'}</div>`;
       b.appendChild(info);
-      b.onclick = () => {
-        if (deadInfo && performance.now() < deadInfo.until) return;
-        const me = curSnap && curSnap.p.find((p) => p.id === myId);
-        if (me && me.a) pendingSwitch = vt;
-        deadInfo = null;
-        send({ t: 'spawn', vtype: vt });
-        hideSpawn();
-      };
+      b.onclick = () => pickVehicle(vt);
       list.appendChild(b);
     }
     $('spawnPanel').classList.remove('hidden');
+  }
+  function pickVehicle(vt) {
+    if (deadInfo && performance.now() < deadInfo.until) return;
+    const me = curSnap && curSnap.p.find((p) => p.id === myId);
+    if (me && me.a) pendingSwitch = vt;
+    deadInfo = null;
+    send({ t: 'spawn', vtype: vt });
+    hideSpawn();
   }
   function hideSpawn() { $('spawnPanel').classList.add('hidden'); }
 
@@ -362,10 +366,11 @@
 
       // 조준선
       if (me && me.a && me.v !== 'jet') {
-        const wx = mouse.x - ox, wy = mouse.y - oy;
-        ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.setLineDash([6, 8]);
-        ctx.beginPath(); ctx.moveTo(me.x, me.y); ctx.lineTo(me.x + Math.cos(me.tu) * 400, me.y + Math.sin(me.tu) * 400); ctx.stroke();
+        const range = Math.min(500, S.VEHICLES[me.v].weapons[0].speed * S.VEHICLES[me.v].weapons[0].life);
+        ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([6, 8]);
+        ctx.beginPath(); ctx.moveTo(me.x, me.y); ctx.lineTo(me.x + Math.cos(me.tu) * range, me.y + Math.sin(me.tu) * range); ctx.stroke();
         ctx.setLineDash([]);
+        const wx = me.x + Math.cos(me.tu) * range, wy = me.y + Math.sin(me.tu) * range;
         ctx.strokeStyle = 'rgba(255,207,90,.8)';
         ctx.beginPath(); ctx.arc(wx, wy, 10, 0, Math.PI * 2); ctx.stroke();
       } else if (me && me.a) {
@@ -484,47 +489,60 @@
     }
   });
 
-  // ---------- 입력 ----------
-  const KEYMAP = { KeyW: 'u', ArrowUp: 'u', KeyS: 'd', ArrowDown: 'd', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
+  // ---------- 입력 (키보드 전용) ----------
+  // 이동 WASD/방향키 · 포탑 Q/E (R 정면 복귀) · 주무기 Space/J · 보조무기 F/K
+  const KEYMAP = {
+    KeyW: 'u', ArrowUp: 'u', KeyS: 'd', ArrowDown: 'd', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
+    KeyQ: 'tl', KeyE: 'tr', KeyR: 'c', Space: 'f1', KeyJ: 'f1', KeyF: 'f2', KeyK: 'f2',
+  };
+  const DIGITS = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3 };
+  const lobbyChatInput = $('lobbyChatInput');
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { nameInput.blur(); e.preventDefault(); } });
+  lobbyChatInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') lobbyChatInput.blur(); });
+
   window.addEventListener('keydown', (e) => {
-    if (!inGame || document.activeElement === nameInput || document.activeElement === $('lobbyChatInput')) return;
-    if (e.key === 'Enter') { chatInput.focus(); e.preventDefault(); return; }
-    if (e.code === 'Tab') e.preventDefault();
-    if (e.code === 'Escape') {
-      if ($('spawnPanel').classList.contains('hidden')) showSpawn('전투 기계 변경', 'Esc로 닫기 — 새 기체를 고르면 현재 기체는 퇴각(피격 1회 처리) 후 3초 뒤 재출격합니다');
-      else if (!deadInfo) hideSpawn();
+    const typing = document.activeElement === nameInput || document.activeElement === lobbyChatInput;
+    if (typing) return;
+    // 로비: 숫자키로 모드 선택, Enter 로비 채팅, N 닉네임 입력
+    if (!inGame) {
+      if (e.code in DIGITS) { const key = Object.keys(S.MODES)[DIGITS[e.code]]; if (key) joinMode(key); }
+      else if (e.key === 'Enter') { lobbyChatInput.focus(); e.preventDefault(); }
+      else if (e.code === 'KeyN') { nameInput.focus(); e.preventDefault(); }
       return;
     }
-    if (e.code === 'Space') e.preventDefault();
+    // 기체 선택 창: 숫자키로 선택, L 로비로, Esc 닫기
+    if (!$('spawnPanel').classList.contains('hidden')) {
+      if (e.code in DIGITS) { const vt = S.MODES[mode].vehicles[DIGITS[e.code]]; if (vt) pickVehicle(vt); }
+      else if (e.code === 'KeyL') leaveToLobby();
+      else if (e.code === 'Escape' && !deadInfo) hideSpawn();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Enter') { chatInput.focus(); e.preventDefault(); return; }
+    if (e.code === 'Escape') { showSpawn('전투 기계 변경', 'Esc로 닫기 — 새 기체를 고르면 현재 기체는 퇴각(피격 1회 처리) 후 3초 뒤 재출격합니다'); return; }
+    if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     keys[e.code] = true;
   });
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.l = mouse.r = false; });
-  canvas.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
-  canvas.addEventListener('mousedown', (e) => { if (e.button === 0) mouse.l = true; if (e.button === 2) mouse.r = true; });
-  window.addEventListener('mouseup', (e) => { if (e.button === 0) mouse.l = false; if (e.button === 2) mouse.r = false; });
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
-  // 터치: 왼쪽 절반 = 이동 스틱, 오른쪽 절반 = 조준 + 사격
-  const touch = { move: null, aim: null };
+  // 터치 (키보드 없는 기기용): 왼쪽 절반 = 이동 스틱, 오른쪽 절반 = 주무기 사격
+  const touch = { move: null, fire: null };
   canvas.addEventListener('touchstart', (e) => {
     for (const t of e.changedTouches) {
       if (t.clientX < innerWidth / 2) touch.move = { id: t.identifier, sx: t.clientX, sy: t.clientY, x: t.clientX, y: t.clientY };
-      else { touch.aim = { id: t.identifier }; mouse.x = t.clientX; mouse.y = t.clientY; mouse.l = true; }
+      else touch.fire = t.identifier;
     }
     e.preventDefault();
   }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
-    for (const t of e.changedTouches) {
-      if (touch.move && t.identifier === touch.move.id) { touch.move.x = t.clientX; touch.move.y = t.clientY; }
-      if (touch.aim && t.identifier === touch.aim.id) { mouse.x = t.clientX; mouse.y = t.clientY; }
-    }
+    for (const t of e.changedTouches) if (touch.move && t.identifier === touch.move.id) { touch.move.x = t.clientX; touch.move.y = t.clientY; }
     e.preventDefault();
   }, { passive: false });
   canvas.addEventListener('touchend', (e) => {
     for (const t of e.changedTouches) {
       if (touch.move && t.identifier === touch.move.id) touch.move = null;
-      if (touch.aim && t.identifier === touch.aim.id) { touch.aim = null; mouse.l = false; }
+      if (t.identifier === touch.fire) touch.fire = null;
     }
   });
 
@@ -532,7 +550,7 @@
   setInterval(() => {
     if (!inGame || !curSnap) return;
     const me = curSnap.p.find((p) => p.id === myId);
-    const inp = { t: 'input', u: false, d: false, l: false, r: false, f1: mouse.l, f2: mouse.r || !!keys['Space'], aim: 0 };
+    const inp = { t: 'input', u: false, d: false, l: false, r: false, tl: false, tr: false, c: false, f1: touch.fire !== null, f2: false };
     for (const [code, k] of Object.entries(KEYMAP)) if (keys[code]) inp[k] = true;
     if (touch.move) {
       const dx = touch.move.x - touch.move.sx, dy = touch.move.y - touch.move.sy;
@@ -543,10 +561,6 @@
         inp.l = diff < -0.15; inp.r = diff > 0.15; inp.u = true;
       }
     }
-    if (me) {
-      const sx = me.x - cam.x + innerWidth / 2, sy = me.y - cam.y + innerHeight / 2;
-      inp.aim = Math.round(Math.atan2(mouse.y - sy, mouse.x - sx) * 100) / 100;
-    }
     const s = JSON.stringify(inp);
     if (s !== lastInput) { send(inp); lastInput = s; }
   }, 33);
@@ -555,6 +569,7 @@
   setInterval(() => { if (inGame) $('pingLabel').textContent = `${Math.round(1000 / snapInterval)} 틱/초`; }, 1000);
 
   renderModes();
+  if (!nameInput.value) nameInput.focus();
   connect();
   requestAnimationFrame(frame);
 })();
