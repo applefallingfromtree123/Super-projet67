@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ironclad-front
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: MIN_COMBATANTS
+        value: 4

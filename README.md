@@ -13,6 +13,19 @@ npm start          # http://localhost:3000
 같은 네트워크의 친구는 `http://<내 IP>:3000` 으로 접속하면 함께 싸울 수 있습니다.
 포트는 `PORT=8080 npm start` 처럼 바꿀 수 있습니다.
 
+## Render에 배포하기
+
+저장소에 `render.yaml`이 들어 있어서 Render가 설정을 자동으로 읽습니다.
+
+1. https://dashboard.render.com 에 GitHub 계정으로 로그인
+2. **New → Blueprint** 를 누르고 이 저장소를 선택 (게임 코드가 있는 브랜치 선택)
+3. **Apply** 를 누르면 빌드 후 `https://ironclad-front-xxxx.onrender.com` 같은 주소가 생김
+4. 그 주소를 친구들에게 보내면 어디서든 접속 가능
+
+Blueprint 대신 **New → Web Service** 로 직접 만들 때는 Build Command `npm install`, Start Command `npm start` 를 입력하면 됩니다.
+
+무료 플랜은 15분 동안 접속이 없으면 서버가 잠들고, 다음 접속 때 깨어나는 데 30초~1분 정도 걸립니다.
+
 ## 전투 모드
 
 | 모드 | 참전 기계 | 지도 |
